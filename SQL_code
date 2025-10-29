@@ -1,1 +1,431 @@
 
+SELECT 
+emp.name,
+emp.empid,
+emp.department,
+emp.join_date,
+lead(emp.join_date) over(partition by emp.department order by emp.join_date asc) as jd
+FROM emp_sheet emp
+----Lead
+SELECT 
+emp.name,
+emp.empid,
+emp.department,
+emp.join_date,
+case 
+	when lead(emp.name,2) over(partition by emp.department order by emp.join_date asc) is null then "NA"
+	else lead(emp.name,2) over(partition by emp.department order by emp.join_date asc) 
+end as emname
+
+FROM emp_sheet emp;
+---------Lag
+SELECT 
+emp.name,
+emp.empid,
+emp.department,
+emp.join_date,
+case 
+	when lag(emp.name,2) over(partition by emp.department order by emp.join_date asc) is null then "NA"
+	else lag(emp.name,2) over(partition by emp.department order by emp.join_date asc) 
+end as emname
+
+FROM emp_sheet emp;
+-----first value and last value
+SELECT 
+emp.name,
+emp.empid,
+emp.department,
+emp.join_date,
+first_value(emp.name) over(partition by emp.department order by emp.join_date range between unbounded preceding and unbounded following) as fv,
+last_value(emp.name) over(partition by emp.department order by emp.join_date range between unbounded preceding and unbounded following) as Lv
+
+FROM emp_sheet emp;
+--------second higest salery
+select * from(
+SELECT 
+emp.name,
+emp.empid,
+emp.department,
+emp.join_date,
+emp.net_pay 
+
+FROM emp_sheet emp
+
+order by net_pay desc limit 2)
+
+order by net_pay asc limit 1;
+-----using offset
+SELECT 
+emp.name,
+emp.empid,
+emp.department,
+emp.join_date,
+emp.net_pay 
+
+FROM emp_sheet emp
+order by emp.net_pay desc limit 1 offset 1 ;
+
+---nth-value
+
+SELECT
+	emp.name,
+	emp.empid,
+	emp.department,
+	emp.join_date,
+	nth_value(emp.net_pay, 2) over(partition by emp.department order by emp.net_pay desc range between unbounded preceding and unbounded following)as nth
+
+FROM emp_sheet emp
+---cumumalative distribution
+
+SELECT 
+emp.name,
+emp.empid,
+emp.department,
+emp.join_date,
+emp.net_pay,
+(cume_dist() over(partition by emp.department order by emp.net_pay))*100 +'%' as cumdis
+
+FROM emp_sheet emp
+----
+SELECT 
+emp.name,
+emp.empid,
+emp.department,
+emp.join_date,
+emp.net_pay,
+cume_dist() over(partition by emp.department order by emp.net_pay)
+
+FROM emp_sheet emp
+
+-----sql-function classs-16
+
+
+select * FROM emp_sheet
+
+
+create function practice.emp_detail(_input_name varchar)
+returns table ("Name" varchar, "salary" int,"age" int, "department" varchar)
+
+as
+$$
+select emp.name,emp.net_pay,emp.age,emp.department
+from emp_sheet emp
+where lower(emp.name)=lower(_input_name);
+$$ 
+language sql ;
+--calling above function
+select * from public.emp_detail('ola lara')
+
+
+--
+CREATE OR REPLACE FUNCTION practice.emp_detail(_input_name VARCHAR)
+RETURNS TABLE (
+    name      VARCHAR,
+    salary    INT,
+    age       INT,
+    department VARCHAR
+)
+AS $$
+    SELECT
+        emp.name,
+        emp.net_pay AS salary,
+        emp.age,
+        emp.department
+    FROM emp_sheet emp
+    WHERE LOWER(emp.name) = LOWER(_input_name);
+$$
+LANGUAGE SQL;
+
+-- Transformation/pivot
+drop TABLE Transformation
+
+CREATE TABLE Transformation(
+YEAR int,
+quarter int,
+amount int
+);
+ select * from Transformation
+ 
+INSERT INTO Transformation (Year,quarter,amount) values
+(2022, 2, 300),
+(2021, 1, 500),
+(2022, 3, 700),
+(2023, 1, 800);
+
+CREATE EXTENSION tablefunc;
+
+SELECT *
+FROM CROSSTAB(
+    'SELECT Year, quarter, amount FROM Transformation ORDER BY 1,2',
+    'SELECT DISTINCT quarter FROM Transformation ORDER BY 1'
+) AS ct (Year int, quarter1 int, quarter2 int, quarter3 int);
+
+
+---class 14 window function
+select * from emp_sheet
+ 
+ select
+ Row_number() over(partition by department order by net_pay) as 'serial',
+ emp.EmpID,
+ emp.name,
+ emp.department,
+ emp.net_pay
+ from emp_sheet emp
+ where age=25;
+
+
+ select
+ emp.EmpID,
+ emp.name,
+ emp.department,
+ emp.net_pay,
+ sum(emp.net_pay) over(partition by department order by net_pay) as 'Total'
+ from emp_sheet emp
+ where age=25; 
+ 
+--Rank
+ select
+ emp.EmpID,
+ emp.name,
+ emp.department,
+ emp.net_pay,
+ Rank()over(partition by emp.department order by net_pay)'Rank'
+ from emp_sheet emp
+ where age=25; 
+ 
+
+update emp_sheet 
+set net_pay=83360
+where name='Stan Pratt';
+
+select * from emp_sheet  where Name="Stan Pratt";
+--dense rank
+ select
+ emp.EmpID,
+ emp.name,
+ emp.department,
+ emp.net_pay,
+ Dense_Rank()over(partition by emp.department order by net_pay)'Rank'
+ from emp_sheet emp
+ where age=25; 
+
+---find out diffrences between emp salary and and avg selary of dept salary.
+
+ select
+ emp.EmpID,
+ emp.name,
+ emp.department,
+ emp.net_pay,
+ emp.net_pay-avg(emp.net_pay) over(partition by emp.department)'diffrence'
+ from emp_sheet emp
+ where age=25; 
+ 
+--findout percentage of emp salary following total salary of dept salary (issue with table plus)
+ select
+ emp.EmpID,
+ emp.name,
+ emp.department,
+ emp.net_pay,
+ (emp.net_pay/sum(emp.net_pay) over(partition by emp.department))*100 'percentage'
+ from emp_sheet emp
+ where age=25; 
+ 
+select 3100::FLOAT/3500
+---Lead/lag >> to see the next valuse and previous value
+
+ select
+ emp.EmpID,
+ emp.department,
+ emp.net_pay,
+ emp.name,
+ Lead(emp.name,2) over(partition by emp.department)'1st Next value' --by default lead(emp.name, 1 thake)
+ from emp_sheet emp
+ where age=25;
+--lag
+ select
+ emp.EmpID,
+ emp.department,
+ emp.net_pay,
+ emp.name,
+ lag(emp.name,2) over(partition by emp.department)'1st Next value' --by default lead(emp.name, 1 thake)
+ from emp_sheet emp
+ where age=25;
+ 
+ --First value
+ 
+  select
+ emp.EmpID,
+ emp.department,
+ emp.net_pay,
+ emp.name,
+ First_value(emp.name) over(partition by emp.department Range between unbounded preceding and 
+ unbounded following)'1st value',
+ Last_value(emp.name) over(partition by emp.department Range between unbounded preceding and 
+ unbounded following)'last value'
+ from emp_sheet emp
+ where age=25;
+  
+--NTILE
+  select
+ emp.EmpID,
+ emp.department,
+ emp.net_pay,
+ emp.name,
+ NTILE(3) over(partition by emp.department)'ntile' 
+ from emp_sheet emp
+ where age=25;
+
+select * from emp_sheet
+
+create or replace function cx_details(given_name varchar)
+returns table("Name" varchar,"Age" int, "Department" varchar, "Salary" int)
+language sql
+as 
+$$ 
+select emp.name,emp.age,emp.department,emp.net_pay 
+from emp_sheet emp
+where emp.name=given_name;
+$$;
+
+--n-th value>> find second highest salary
+
+--one way
+ select * from
+ (select
+ emp.EmpID,
+ emp.department,
+ emp.net_pay,
+ emp.name
+ from emp_sheet emp
+ order by emp.net_pay desc
+ limit 2) as salcal
+ order by net_pay asc 
+ limit 1;
+ 
+--second way
+
+ select
+ emp.EmpID,
+ emp.department,
+ emp.net_pay,
+ emp.name
+ from emp_sheet emp
+ order by emp.net_pay desc
+ limit 1
+ offset 1;
+ 
+ --third way
+ 
+ select
+ emp.EmpID,
+ emp.department,
+ emp.net_pay,
+ emp.name,
+ NTH_VALUE(emp.net_pay,3) over(partition by emp.department order by emp.net_pay desc Range between unbounded preceding and 
+ unbounded following) as 'n-th value'
+ from emp_sheet emp;
+ 
+--cume dist> cumilative adding
+ 
+ select
+ emp.EmpID,
+ emp.department,
+ emp.net_pay,
+ emp.name,
+ --(cume_dist() over(partition by emp.department order by emp.net_pay))*100 as || '%'cume' 
+ from emp_sheet emp; 
+
+--             -commimg 16
+--function
+
+create or replace function cx_details(given_name varchar)
+returns table("Name" varchar,"Age" int, "Department" varchar, "Salary" int)
+language sql
+as 
+$$ 
+select emp.name,emp.age,emp.department,emp.net_pay 
+from emp_sheet emp
+where emp.name=given_name;
+$$;
+
+select * FROM emp_sheet
+--Function
+
+create or replace function cx_details(given_name varchar)
+returns table("Name" varchar,"Age" int, "Department" varchar, "Salary" int)
+language sql
+as 
+$$ 
+select emp.name,emp.age,emp.department,emp.net_pay 
+from emp_sheet emp
+where emp.name=given_name;
+$$;
+
+select * from cx_details('Pat');
+
+---procedure
+select * from emp_sheet
+
+create procedure practice.is_updated(_name varchar,ptc int)
+language sql 
+as 
+$$ 
+update practice.emp_sheet emp 
+set emp.net_pay=emp.net_pay+(emp.net_pay*ptc/100)
+where Name=_name;
+$$;
+
+call practice.is_updated('Leif Mack',15);
+
+--Trigger
+
+alter table emp_sheet 
+add updated_at date;
+----trigger  
+create function S_updated()
+returns trigger 
+as 
+$$ 
+begin 
+ new.updated_at=now(); 
+ returns new;
+end;
+$$ 
+language plpgsql; 
+
+create trigger S_updated
+before update on emp_sheet for each row
+execute function S_updated();
+
+update emp_sheet 
+set net_pay=net_pay+60
+where name='Keven Norman';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
