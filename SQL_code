@@ -5,7 +5,7 @@ emp.empid,
 emp.department,
 emp.join_date,
 lead(emp.join_date) over(partition by emp.department order by emp.join_date asc) as jd
-FROM emp_sheet emp
+FROM emp_sheet emp 
 ----Lead
 SELECT 
 emp.name,
